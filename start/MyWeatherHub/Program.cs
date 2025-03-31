@@ -7,7 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddServerSideBlazor();
+builder.AddServiceDefaults();
 
 builder.Services.AddHttpClient<NwsManager>(c =>
 {

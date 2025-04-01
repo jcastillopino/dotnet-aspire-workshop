@@ -1,0 +1,161 @@
+@page "/spain"
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using System.Diagnostics
+@inject AemetManager AemetManager
+@inject ILogger<NwsManager> Logger
+@rendermode InteractiveServer
+
+<PageTitle>Spain Weather Hub</PageTitle>
+
+<HeadContent>
+	<style>
+		.quickgrid {
+			width: 100%;
+		}
+
+		.quickgrid td:has(span.selectedCell) {
+			background-color: yellow;
+		}
+	</style>
+</HeadContent>
+
+<h1>Spain Weather Hub</h1>
+<h2>Live Weather reports from AEMET (Agencia Estatal de Meteorología)</h2>
+
+<div class="row">
+	<div class="col-md-6">
+		<QuickGrid Items="municipios" TGridItem="Municipio" Pagination="pagination">
+			<TemplateColumn Title="Municipio" SortBy="NameSort" Sortable="true">
+				<ColumnOptions>
+					<div class="search-box">
+						<input type="search" autofocus @bind="NameFilter" @bind:event="oninput" placeholder="Municipio..." />
+					</div>
+				</ColumnOptions>
+				<ChildContent>
+					<span class="link-primary @(SelectedMunicipio == context ? "selectedCell" : "")" style="cursor: pointer;"
+						@onclick="@(() => SelectMunicipio(context))">@context.Name</span>
+				</ChildContent>
+			</TemplateColumn>
+			<TemplateColumn Title="Provincia">
+				<ColumnOptions>
+					<div class="search-box">
+						<input type="search" autofocus @bind="ProvinciaFilter" @bind:event="oninput"
+							placeholder="Provincia..." />
+					</div>
+				</ColumnOptions>
+				<ChildContent>
+					<span class="@(SelectedMunicipio == context ? "selectedCell" : "")">@context.Provincia</span>
+				</ChildContent>
+			</TemplateColumn>
+		</QuickGrid>
+		<Paginator State="@pagination"></Paginator>
+	</div>
+
+	<div class="col-md-6" style="max-width:30em;">
+		<p>Click the name of a municipio (municipality) from the <a href="https://www.aemet.es/" target="_blank">AEMET (Spanish Meteorological Agency)</a> and the upcoming weather for that municipio will appear below.</p>
+		<p>You can sort and filter the list of available weather forecast municipios using the column headers of the grid.</p>
+		<p>For reliable forecasts, try Madrid, Barcelona, Valencia, or Sevilla.</p>
+	</div>
+
+</div>
+
+@if (IsLoading)
+{
+	<div class="spinner-border" role="status">
+		<span class="visually-hidden">Loading...</span>
+	</div>
+}
+else if (SelectedMunicipio != null && Forecast != null)
+{
+
+	<h3>Weather for @SelectedMunicipio.Name<text>, </text> @SelectedMunicipio.Provincia (@SelectedMunicipio.Key)</h3>
+
+	<div class="row row-cols-1 row-cols-md-4 g-4">
+		@foreach (var forecast in Forecast.Take(8))
+		{
+
+			<div class="col">
+				<div class="card">
+					<div class="card-header">@forecast.Name</div>
+					<div class="card-body">@((MarkupString)forecast.DetailedForecast.Replace("\n", "<br />"))</div>
+				</div>
+			</div>
+
+		}
+	</div>
+
+}
+else if (SelectedMunicipio != null && !string.IsNullOrEmpty(Error))
+{
+	<div class="alert-danger border border-1 border-danger p-3" style="width: 30em">@Error<br />Choose another municipality</div>
+}
+
+@code {
+
+	IQueryable<Municipio> municipios
+	{
+		get
+		{
+			var results = AllMunicipios
+				.AsQueryable();
+
+			results = string.IsNullOrEmpty(ProvinciaFilter) ? results.AsQueryable()
+					: results.Where(m => m.Provincia.Contains(ProvinciaFilter, StringComparison.InvariantCultureIgnoreCase));
+
+			results = string.IsNullOrEmpty(NameFilter) ? results
+					: results.Where(m => m.Name.Contains(NameFilter, StringComparison.InvariantCultureIgnoreCase));
+
+			return results.OrderBy(m => m.Name);
+		}
+	}
+
+	Municipio[] AllMunicipios { get; set; } = [];
+
+	PaginationState pagination = new PaginationState { ItemsPerPage = 10 };
+
+	string NameFilter { get; set; } = string.Empty;
+
+	string ProvinciaFilter { get; set; } = string.Empty;
+
+	GridSort<Municipio> NameSort = GridSort<Municipio>
+	.ByAscending(f => f.Name);
+
+	Municipio SelectedMunicipio { get; set; } = null!;
+
+	IEnumerable<AemetForecast> Forecast { get; set; } = null!;
+
+	string Error { get; set; } = string.Empty;
+
+	bool IsLoading = false;
+
+	protected override async Task OnInitializedAsync()
+	{
+		AllMunicipios = (await AemetManager.GetMunicipiosAsync()).ToArray();		
+	}
+
+	private async Task SelectMunicipio(Municipio municipio)
+	{
+		// Workaround to create a new trace
+		// Blazor server keeps connection open so a new trace isn't created
+		Activity.Current = null;
+
+		SelectedMunicipio = municipio;
+		IsLoading = true;
+		StateHasChanged();
+		await Task.Delay(50);
+
+		try
+		{
+			IsLoading = false;
+			Forecast = await AemetManager.GetForecastByMunicipioAsync(municipio.Key);
+			Error = string.Empty;
+		}
+		catch (Exception ex)
+		{
+			IsLoading = false;
+			Logger.LogError(ex, "Error getting forecast for {0}({1})", municipio.Name, municipio.Key);
+			Forecast = null!;
+			Error = $"Unable to locate weather for {SelectedMunicipio.Name}({SelectedMunicipio.Key})";
+		}
+	}
+}

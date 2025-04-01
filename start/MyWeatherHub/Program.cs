@@ -14,6 +14,13 @@ builder.Services.AddHttpClient<NwsManager>(c =>
     c.BaseAddress = new(url);
 });
 
+builder.Services.AddHttpClient<AemetManager>(c =>
+{
+    var url = builder.Configuration["AemetEndpoint"] ?? throw new InvalidOperationException("AemetEndpoint is not set");
+
+    c.BaseAddress = new(url);
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

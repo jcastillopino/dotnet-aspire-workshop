@@ -1,6 +1,10 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-var api = builder.AddProject<Projects.Api>("api");
+var cache = builder.AddRedis("cache")
+    .WithRedisCommander();
+
+var api = builder.AddProject<Projects.Api>("api")
+    .WithReference(cache);
 
 var web = builder.AddProject<Projects.MyWeatherHub>("myweatherhub")
     .WithReference(api)

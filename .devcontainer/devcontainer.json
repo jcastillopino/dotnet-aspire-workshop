@@ -31,6 +31,6 @@
         "ASPNETCORE_Kestrel__Certificates__Default__Password": "crypticpassword"
     },
     "onCreateCommand": "dotnet new install Aspire.ProjectTemplates::9.1.0 --force",
-	"postStartCommand": "dotnet dev-certs https --trust",
+	"postStartCommand": "dotnet dev-certs https --trust && git config --global user.name 'jcastillopino' && git config --global user.email 'jorge@latintop.com'",
     "postCreateCommand": "find **/*.sln -exec dotnet restore {} \\;"
 }
